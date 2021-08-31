@@ -9,6 +9,11 @@ use colored::Colorize;
 use mime::Mime;
 use reqwest::{header, Url};
 
+use syntect::easy::HighlightLines;
+use syntect::highlighting::{Style, ThemeSet};
+use syntect::parsing::SyntaxSet;
+use syntect::util::{as_24_bit_terminal_escaped, LinesWithEndings};
+
 // 3 slash means help message for cli
 /// httpie in rust rather than in python
 #[derive(Clap, Debug)]
@@ -112,12 +117,22 @@ async fn print_response(rsp: reqwest::Response) {
     {
         match m {
             v if v == mime::APPLICATION_JSON => {
-                println!(
-                    "{}",
-                    jsonxf::pretty_print(&rsp.text().await.unwrap())
-                        .unwrap()
-                        .bright_purple()
-                );
+                // println!(
+                // "{}",
+                // jsonxf::pretty_print(&rsp.text().await.unwrap())
+                // .unwrap()
+                // .bright_purple()
+                // );
+                let ps = SyntaxSet::load_defaults_newlines();
+                let ts = ThemeSet::load_defaults();
+                let syntax = ps.find_syntax_by_extension("rs").unwrap();
+                let mut h = HighlightLines::new(syntax, &ts.themes["base16-eighties.dark"]);
+                for line in LinesWithEndings::from(&rsp.text().await.unwrap()) {
+                    let ranges: Vec<(Style, &str)> = h.highlight(line, &ps);
+                    let escaped = as_24_bit_terminal_escaped(&ranges[..], true);
+                    println!("{}", escaped);
+                }
+                println!("\x1b[0m");
             }
             _ => {
                 println!("{:?}", &rsp.text().await.unwrap());
